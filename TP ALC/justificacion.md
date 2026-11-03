@@ -1,6 +1,6 @@
 ## Ejercicio 1 (a): DLT en 3 dimensiones
 
-### 1. Construcción de la matriz Q
+### Construcción de la matriz Q (Introduccion)
 
 Podemos observar que en `detected_corners.txt` cada fila corresponde a una imagen. Como cada punto detectado tiene dos coordenadas, $(u_i,v_i)$, y cada fila contiene 24 columnas, significa que tenemos 12 puntos detectados por imagen. Por lo tanto, podemos representar cada fila de la siguiente manera:
 
@@ -113,7 +113,7 @@ En consecuencia, debemos construir una matriz $Q_j$ independiente para cada imag
 
 ---
 
-### 2. ¿Qué rango debe tener Q para obtener una solución no nula única, salvo escala?
+### ¿Qué rango debe tener Q para obtener una solución no nula única, salvo escala?
 
 Queremos determinar el rango que debe tener la matriz $Q$ para que el sistema homogéneo:
 
@@ -216,7 +216,7 @@ como se plantea en la ecuación 7 del enunciado.
 
 ---
 
-### 3. ¿Cuántos puntos se necesitan como mínimo?
+### ¿Cuántos puntos se necesitan como mínimo?
 
 Sabemos que:
 
@@ -288,7 +288,7 @@ Es importante aclarar que 6 puntos son el mínimo necesario por cantidad de ecua
 
 ---
 
-### 4. ¿Qué condición geométrica deben cumplir los puntos?
+### ¿Qué condición geométrica deben cumplir los puntos?
 
 Para que $Q$ tenga rango 11 no alcanza con tener $2n\geq11$ filas: la imagen de $Q$, generada por sus 12 columnas, tiene que tener dimensión 11. Si los puntos están mal ubicados, hay columnas que no aportan una dirección nueva (por ejemplo, columnas nulas) y el rango baja.
 
@@ -383,176 +383,6 @@ $$
 
 La restricción $\|m\|_2=1$ evita que la solución trivial $m=0$ sea el mínimo.
 
-### Resolución mediante SVD
-
-**Teorema (SVD reducida).** Sea $A\in\mathbb R^{p\times q}$ con $p\geq q$. Existen una matriz $U\in\mathbb R^{p\times q}$ con columnas ortonormales ($U^\top U=I$), una matriz ortogonal $V\in\mathbb R^{q\times q}$ y una matriz diagonal $\Sigma=\operatorname{diag}(\sigma_1,\dots,\sigma_q)$ con
-
-$$
-\sigma_1\geq\sigma_2\geq\cdots\geq\sigma_q\geq0,
-$$
-
-tales que
-
-$$
-A=U\Sigma V^\top.
-$$
-
-Los $\sigma_i$ son los valores singulares de $A$ y las columnas de $V$ son sus vectores singulares derechos.
-
-Como queremos minimizar la norma de $Qm$, podemos utilizar directamente este teorema con $A=Q$, que tiene más filas que columnas:
-
-$$
-Q=U\Sigma V^\top
-$$
-
-Donde, para nuestro caso, tenemos:
-
-$$
-Q\in\mathbb R^{24\times12},
-\qquad
-U\in\mathbb R^{24\times12},
-\qquad
-\Sigma\in\mathbb R^{12\times12},
-\qquad
-V\in\mathbb R^{12\times12}.
-$$
-
-Reemplazamos la descomposición SVD en nuestra función objetivo. Como las columnas de $U$ son ortonormales, se cumple que $U^\top U=I$. Entonces:
-
-$$
-\begin{aligned}
-\|Qm\|_2^2
-&=(U\Sigma V^\top m)^\top(U\Sigma V^\top m)\\
-&=m^\top V\Sigma^\top U^\top U\Sigma V^\top m\\
-&=m^\top V\Sigma^\top\Sigma V^\top m.
-\end{aligned}
-$$
-
-Ahora, definimos:
-
-$$
-z=V^\top m
-$$
-
-Como $V$ es ortogonal, también lo es $V^\top$ (Observación 3.3), y se cumple $VV^\top=I$. Entonces:
-
-$$
-\|z\|_2^2=m^\top VV^\top m=\|m\|_2^2=1.
-$$
-
-Por lo tanto, nuestra función objetivo queda:
-
-$$
-\begin{aligned}
-\|Qm\|_2^2
-&=z^\top\Sigma^\top\Sigma z\\
-&=\sigma_1^2z_1^2+\sigma_2^2z_2^2+\cdots+\sigma_{12}^2z_{12}^2,
-\end{aligned}
-\qquad\text{con}\qquad
-z_1^2+z_2^2+\cdots+z_{12}^2=1.
-$$
-
-Como los valores singulares están ordenados de mayor a menor, $\sigma_i\geq\sigma_{12}$ para todo $i$, y entonces:
-
-$$
-\sigma_1^2z_1^2+\cdots+\sigma_{12}^2z_{12}^2
-\;\geq\;
-\sigma_{12}^2\,(z_1^2+\cdots+z_{12}^2)
-=\sigma_{12}^2 .
-$$
-
-Es decir, $\|Qm\|_2^2\geq\sigma_{12}^2$, y la cota se alcanza cuando toda la contribución corresponde al menor valor singular:
-
-$$
-z=
-\begin{bmatrix}
-0\\
-0\\
-\vdots\\
-0\\
-\pm1
-\end{bmatrix}.
-$$
-
-Como habíamos definido $z=V^\top m$, multiplicando por $V$ obtenemos $m=Vz$ (porque $VV^\top=I$). Por lo tanto:
-
-$$
-\boxed{m=\pm v_{12}}
-$$
-
-Donde $v_{12}$ es la última columna de $V$, correspondiente al menor valor singular de $Q$. Si $\sigma_{11}>\sigma_{12}$, estos son los únicos mínimos: la solución es única salvo el signo.
-
-### Recuperación de la matriz de proyección M
-
-Una vez obtenido el vector $m$, podemos reconstruir la matriz de proyección $M$.
-
-Recordemos que habíamos definido $m=(m_1;m_2;m_3)$, es decir, las filas de $M$ una detrás de otra:
-
-$$
-m=
-\begin{bmatrix}
-m_{11}&m_{12}&m_{13}&m_{14}&m_{21}&m_{22}&m_{23}&m_{24}&m_{31}&m_{32}&m_{33}&m_{34}
-\end{bmatrix}^\top.
-$$
-
-Por lo tanto, reorganizando sus componentes obtenemos:
-
-$$
-\boxed{
-M=
-\begin{bmatrix}
-m_{11}&m_{12}&m_{13}&m_{14}\\
-m_{21}&m_{22}&m_{23}&m_{24}\\
-m_{31}&m_{32}&m_{33}&m_{34}
-\end{bmatrix}
-}
-$$
-
-### Conclusión
-
-La solución de la minimización de la ecuación 8 se obtiene directamente mediante la descomposición SVD de $Q$.
-
-Por lo tanto, debemos calcular:
-
-$$
-Q=U\Sigma V^\top
-$$
-
-Y seleccionar la última columna de $V$, suponiendo que los valores singulares están ordenados de mayor a menor:
-
-$$
-\boxed{m=\pm V[:,11]}
-$$
-
-(índices contando desde 0). Finalmente, reorganizamos las 12 componentes de $m$ para obtener la matriz de proyección $M$ de dimensión $3\times4$.
-
-La restricción $\|m\|_2=1$ fija la escala de $m$, así que la solución queda determinada salvo el signo. En cuanto a $M$, queda definida a menos de signo y escala, como corresponde al modelo de proyección perspectiva, y ambos se corrigen al descomponerla en $K$, $R$ y $t$ (Ejercicio 2c).
-
-## Ejercicio 1 (b): Encontrar el vector $m$ que resuelve la minimización
-
-Partimos de la ecuación 8 del enunciado:
-
-$$
-\boxed{
-\min_{\|m\|_2=1}m^\top Q^\top Qm
-}
-$$
-
-Primero, recordemos que:
-
-$$
-m^\top Q^\top Qm=(Qm)^\top(Qm)=\|Qm\|_2^2
-$$
-
-Por lo tanto, podemos expresar el problema como:
-
-$$
-\boxed{
-\min_{\|m\|_2=1}\|Qm\|_2^2
-}
-$$
-
-La restricción $\|m\|_2=1$ evita que la solución trivial $m=0$ sea el mínimo.
 
 ### Resolución mediante SVD
 
