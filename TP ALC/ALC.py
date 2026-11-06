@@ -668,6 +668,7 @@ def poseYReproyeccionEj5b(archivo_txt,K,archivo_jpg):
 
 
 #%%
+
 # ============================================================
 # EJERCICIO 6: RESOLUCIÓN DEL ENUNCIADO
 # ============================================================
@@ -922,81 +923,3 @@ def aplicarPOSIT(obj_vecs, img_vecs, K, MaxIt, atol):
             eps[idx] = productoInterno(A[idx], k) / Z0
 
     return R, t
-
-
-# CARGA DE DATOS PARA APLICAR EL MÉTODO
-
-# Orden: centro, superior izquierda, superior derecha,
-# inferior derecha, inferior izquierda.
-img_vecs = np.array([
-    [522.52398332, 1002.07768509],
-    [400.73044838, 1095.50834202],
-    [390.72002086,  943.68352450],
-    [642.64911366,  910.31543274],
-    [657.66475495, 1060.47184567]
-])
-
-datos = pd.read_csv(
-    os.path.join("heli", "object_points.csv"),
-    delimiter=";"
-)
-obj_vecs = np.asarray(datos[["U [m]", "V [m]", "W [m]"]])
-
-K = np.loadtxt(
-    os.path.join("heli", "K.csv"),
-    delimiter=";"
-)
-
-MaxIt = 100
-atol = 1e-6
-
-
-# f)
-
-# Estimamos la pose actual: P_camara = R_actual * P_objeto + t_actual.
-R_actual, t_actual = aplicarPOSIT(
-    obj_vecs, img_vecs, K, MaxIt, atol
-)
-
-# La posición de la cámara en el sistema de la H es C = -R.T * t.
-C_actual = -multiplicacionMatricial(
-    R_actual.T, t_actual.reshape((3, 1))
-).reshape((3,))
-
-# Elección: conservar la altura actual, pues el enunciado no fija otra.
-# Convención: U hacia la derecha de la H, V hacia arriba y W hacia arriba del suelo.
-h = C_actual[2]
-
-R_deseada = np.array([
-    [1,  0,  0],
-    [0, -1,  0],
-    [0,  0, -1]
-])
-
-C_deseada = np.array([0, 0, h])
-
-t_deseada = -multiplicacionMatricial(
-    R_deseada, C_deseada.reshape((3, 1))
-).reshape((3,))
-
-# Movimiento de la cámara expresado en los ejes de la H.
-desplazamiento = C_deseada - C_actual
-
-rotacion_movimiento = multiplicacionMatricial(
-    R_deseada.T, R_actual
-)
-
-# Presentación de los resultados del inciso f).
-print("Pose actual, objeto a cámara:")
-print(R_actual)
-print(t_actual)
-
-print("Pose deseada, objeto a cámara:")
-print(R_deseada)
-print(t_deseada)
-
-print("Desplazamiento en los ejes de la H [m]:")
-print(desplazamiento)
-
-print("Rotación del movimiento en los ejes de la H:")
-print(rotacion_movimiento)
