@@ -7,10 +7,6 @@ from matplotlib import pyplot as plt
 
 import importlib
 import alc
-import MODULO_ALC
-
-from MODULO_ALC import rq, svd_reducida, calculaQR, multiplicacionMatricial, inversa, traspuesta, QR_con_HH, calculaCholesky, norma, productoExterno, diagRH, productoInterno
-
 
 #%%
 # a)
