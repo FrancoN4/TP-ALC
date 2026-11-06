@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import random
 from MODULO_ALC import rq, svd_reducida, calculaQR, multiplicacionMatricial, inversa, traspuesta, QR_con_HH, calculaCholesky, norma, productoExterno
 
+
+
 #A
 def obtenerQ3d(imgPts, objPts):
 
@@ -26,7 +28,7 @@ def resolverDLT3D(Q):
 
 #C
 def devolverMatricesCalibracion3d(M):
-    if determinante3x3(M[:, :3]) < 0:
+    if (determinante3x3(M[:, :3]) < 0): #Si la matriz A = K*R tiene determinante negativa, le cambiamos el signo a la matriz ya que M ~ -M
         M = -M
 
     A = M[:, :3]                      # A sale de la M ya corregida
@@ -35,13 +37,28 @@ def devolverMatricesCalibracion3d(M):
     # 2) A = K0 R0 (K0 triangular superior, R0 ortogonal)
     K0, R0 = rq(A)
 
+    #Sabemos que R es Ortogonal, osea que R*R^t = Id. Esto significa que R es una rotacion? No, 
+    #det(R) = 1 y R*R^t = Id (esto seria una rotacion) | det(R) = -1 y R*R^t = Id (esto seria una reflexion)
+
+    #Ahora veamos a K = [[a_u, y,u_0], Osea que debe ser triangular superior
+    #                    [0, a_v, v_0],
+    #                    [0,   0, 1]]
+    #donde a_u y a_v son escalas de conversion entre las coordenadas de la camara y las coordenada de los pixeles, ambos valores deben ser mayor a 0
+    #si fuesen negativos un punto que se desplaza hacia la derecha en el sistema de coordenadas de la camara se proyectaria hacia la izquierda en la imagen,
+    #osea que tendriamos una reflexion del eje y no la transformacion que necesitamos.
+    #Puede ser que la matriz K0 que obtenemos sea negativa en su diagonal. Por lo que necesitamos aplicar una correccion de signo, que nos sera util tanto para 
+    #K1 como para R
+
     # 3) Diagonal de K positiva (S diagonal de +-1, S S = I, entonces K1 R = A)
     S = np.eye(3)
     for i in range(3):
-        if K0[i, i] < 0:
+        if (K0[i, i] < 0):
             S[i, i] = -1
     K1 = multiplicacionMatricial(K0, S)
     R = multiplicacionMatricial(S, R0)
+    #Esto es valido porque como S^2 = Id y K1 * R = K1 * R0 = A, con esto obtenemos los tres elementos de la diagonal de k1 sea positivos
+    #Y por proposicion det(AB) = det(A)*det(B), en nuestro caso det(A) = det(R)det(K1) y como R es ortogonal, det(R)=+- 1, pero det(A) es positiva y 
+    # det(K1 tambien lo es, por lo tanto R debe tener determinante positiva y esto nos permitiria que la rotacion sea valida)
 
     # 4) Escala: M = s K [R|t], con s = K1[2,2] (la última fila de R tiene norma 1)
     escala = K1[2, 2]
@@ -51,7 +68,66 @@ def devolverMatricesCalibracion3d(M):
 
     return R, t.reshape(3), K
 
+#Al correr esto deberia quedar algo como Q:(24x12), M:(3x4), K,R: (3x3) y t:(1x3)
+
 #D
+def devolverMatricesCalibracion3d(M, alphas_iguales=False, skew_cero=False):
+    if (determinante3x3(M[:, :3]) < 0): #Si la matriz A = K*R tiene determinante negativa, le cambiamos el signo a la matriz ya que M ~ -M
+        M = -M
+
+    A = M[:, :3]                      # A sale de la M ya corregida
+    b = M[:, 3]
+
+    # 2) A = K0 R0 (K0 triangular superior, R0 ortogonal)
+    K0, R0 = rq(A)
+    # 3) Diagonal de K positiva (S diagonal de +-1, S S = I, entonces K1 R = A)
+    S = np.eye(3)
+    for i in range(3):
+        if (K0[i, i] < 0):
+            S[i, i] = -1
+    K1 = multiplicacionMatricial(K0, S)
+    R = multiplicacionMatricial(S, R0)
+
+    # 4) Escala: M = s K [R|t], con s = K1[2,2] (la última fila de R tiene norma 1)
+    escala = K1[2, 2]
+    K = K1 / escala
+    A_esc = A / escala                  #en caso de que lo necesitemos
+    b = b.reshape(3, 1) / escala      # b/s = K t
+    t = multiplicacionMatricial(inversa(K), b)
+
+    #5)Impongo restricciones
+    if (alphas_iguales == True):
+        alpha = (K[0,0] + K[1,1]) / 2
+
+        K[0,0] = alpha
+        K[1,1] = alpha
+
+    if (skew_cero == True):
+        K[0,1] = 0
+
+    #6) Recalculamos con svd
+    if ((alphas_iguales == True) or (skew_cero == True)):
+        C = multiplicacionMatricial(traspuesta(K),A_esc)
+        U, matriz_sigmas, V_t = svd_reducida(C)
+        D = np.eye(3)
+        UV_t = multiplicacionMatricial(U, V_t)
+
+        if (determinante3x3(UV_t) < 0):
+            D[2,2] = -1
+
+        R = multiplicacionMatricial(multiplicacionMatricial(U, D), V_t)
+
+    else:
+        R = multiplicacionMatricial(S, R0)
+
+    t = multiplicacionMatricial(inversa(K), b)
+    return R, t.reshape(3), K
+
+#D
+#Supongamos que corremos rq para obtener A = k0, r0, Pero esa K0 debe tener en k12 y = 0, pero si modificamos K0 con nuestras restricciones, debemos modificar R0 
+#porque sino A != K0_modificado_con_restricciones * R0
+#En otras palabras, despues de modificar a K0, debemos calcular la nueva R0_mod que sea ortogonal, para eso podemos usar SVD para encontrar la matriz de rotacion R0
+#Mas cercana que minimice que ||A - K*R||^2 (norma_2), donde A ya deberia estar normalizada
 
 #aux
 def rq(M):
@@ -92,6 +168,7 @@ Como eso no puede pasar pues no tiene sentido físico, el numero máximo de fila
 Dado que H es una matriz que, según la definición del principio, las matrices H y lambdaH representan exactamente la misma proyección 2D para cualquier lambda != 0, todas las soluciones de la forma lambda*h_0 corresponden a la misma y única homografía física H.
 Entonces nos garantiza de esta forma que H tiene solución única a menos de un factor de escala.
 """
+
 objPts = np.zeros((77, 2))
 
 indice = 0
@@ -112,7 +189,7 @@ def obtenerQ2d(imgPts, objPts):
         U, V = objPts[i]   # coordenadas del sist. de referencia de la vida real para las esquinas internas del tablero (matriz de 11x7) (2d). "objPts[i]" es una tupla de (U_i, V_i).
         u, v = imgPts[i]   # par de coordenadas de la imagen del objeto (2d).
 
-        Q[2*i] = [U, V, 1, 0, 0, 0, 0, 0, 0, U, V, 1, -u*U, -u*V, -u, -v*U, -v*V, -v]   # filas de Q pares (según ec. 11 del enunciado del tp).
+        Q[2*i] = [U, V, 1, 0, 0, 0, U, V, 1, -u*U, -u*V, -u]   # filas de Q pares (según ec. 11 del enunciado del tp).
 
         Q[2*i + 1] = [0, 0, 0, U, V, 1, -v*U, -v*V, -v] # filas de Q impares (según ec. 11 del enunciado del tp).
 
@@ -136,7 +213,7 @@ def amarv(hi, hj):
 def armarA(Hlst):
     filas_A = []
 
-    for H in lista_H:   #implementacion del jupiter
+    for H in Hlst:  
         h1 = H[:, 0]
         h2 = H[:, 1]
 
@@ -180,8 +257,13 @@ def obtenerPose2D(Hj, K):
     a2 = R_t[:, 1]
     a3 = R_t[:, 2]
 
-    escalar = 1 / norma(a1) #no deberia ser norma 2?
+    escalar = 1 / norma(a1)
 
+    # Forzamos que la profundidad sea positiva.
+    if (a3[2] < 0):
+        escalar = -escalar
+
+    #Recuperamos los vectores de R (r1 y r2) y el de traslacion (t) 
     r1 = a1 * escalar
     r2 = a2 * escalar
     t = a3 * escalar
@@ -189,7 +271,12 @@ def obtenerPose2D(Hj, K):
     r3 = productoExterno(r1, r2)  # r3 = r1 x r2
 
     # Rearmamos R y luego buscamos la mejor aproximación ortonormal usando SVD
-    R = np.columnstack((r1, r2, r3))    #funcion prohibida
+    R = np.zeros((3,3))
+
+    R[:, 0] = r1
+    R[:, 1] = r2
+    R[:, 2] = r3
+    
     U,_, Vt = svd_reducida(R)
     R_ortogonal = productoExterno(U, Vt) #
 
@@ -198,6 +285,7 @@ def obtenerPose2D(Hj, K):
         t = -t
 
     return R_ortogonal, t
+"""
 
 #4
 
@@ -235,3 +323,4 @@ y_real = pt_real[1]/pt_real[2]
 dist_linea_meta = np.abs(x_real)
 print(f"Coordenadas reales(X,Y):({x_real:.2f},{y_real:.2f})")
 print(f"Distancia a la meta{dist_linea_meta:.2f}metros")
+"""

@@ -534,3 +534,86 @@ $$
 (índices contando desde 0). Finalmente, reorganizamos las 12 componentes de $m$ para obtener la matriz de proyección $M$ de dimensión $3\times4$.
 
 La restricción $\|m\|_2=1$ fija la escala de $m$, así que la solución queda determinada salvo el signo. En cuanto a $M$, queda definida a menos de signo y escala, como corresponde al modelo de proyección perspectiva, y ambos se corrigen al descomponerla en $K$, $R$ y $t$ (Ejercicio 2c).
+
+
+# Ejercicio 3(a): Estimación de homografías mediante DLT
+
+## 1. Introducción
+
+Ahora trabajamos con puntos coplanares, es decir, puntos que pertenecen a un mismo plano.
+
+Disponemos de un tablero de ajedrez de $12\times 8$ cuadrados, por lo que tiene $11\times 7$ esquinas internas. Cada cuadrado mide $30\,\text{mm}\times 30\,\text{mm}$, y del cual tomamos como sistema de referencia del tablero un origen en una de sus esquinas internas, con los ejes $U$ y $V$ a lo largo de sus lados y $W=0$ (ya que todos los puntos pertenecen a un mismo plano).
+
+Por lo tanto, las coordenadas de las esquinas internas son:
+
+$$
+U=30i,\qquad V=30j,\qquad W=0
+$$
+
+donde:
+
+$$
+i=0,\ldots,10,\qquad j=0,\ldots,6
+$$
+
+En total, tenemos:
+
+$$
+n=11\cdot 7=77
+$$
+
+correspondencias entre puntos del tablero y sus posiciones en la imagen.
+
+Queremos estimar una homografía $H_j$ para cada una de las 20 fotografías del tablero, utilizando el método DLT.
+
+---
+
+## 2. Planteo del sistema
+
+Como $W=0$, la tercera columna de $R$ queda multiplicada por cero, y la ecuación de proyección se reduce a las ecuaciones (9) y (10) del enunciado:
+
+$$
+\lambda\,m=HP,\qquad H=K\,[r_1\ \ r_2\ \ t]\in\mathbb{R}^{3\times3},
+$$
+
+con $P=(U,V,1)^\top$ y $m=(u,v,1)^\top$. Como $\lambda$ absorbe cualquier factor de escala, $H$ está definida salvo escala (9 entradas, 8 grados de libertad).
+
+Igual que en el Ejercicio 1, se abre la ecuación fila por fila y se elimina $\lambda_i$ reemplazando la tercera igualdad en las otras dos:
+
+$$
+(h_1^\top-u_ih_3^\top)P_i=0,\qquad (h_2^\top-v_ih_3^\top)P_i=0,
+$$
+
+donde $h_j^\top$ es la fila $j$ de $H$. Son ecuaciones lineales en $h=(h_1;h_2;h_3)\in\mathbb{R}^9$ (las filas de $H$ una detrás de otra). Cada punto aporta dos filas:
+
+$$
+Q_i=
+\begin{bmatrix}
+U_i&V_i&1&0&0&0&-u_iU_i&-u_iV_i&-u_i\\
+0&0&0&U_i&V_i&1&-v_iU_i&-v_iV_i&-v_i
+\end{bmatrix}.
+$$
+
+Apilando las $n$ correspondencias (ecuación 11 del enunciado):
+
+$$
+\boxed{Qh=0},\qquad \boxed{Q\in\mathbb{R}^{2n\times9}},\qquad Q\in\mathbb{R}^{154\times9}\ \text{en nuestro caso}.
+$$
+
+---
+
+## 3. Rango de $Q$ y cantidad de puntos
+
+Queremos que la solución sea única salvo escala, es decir, $\dim(\ker(Q))=1$. Por el teorema de la dimensión (Teorema 1.1), como $Q$ tiene 9 columnas:
+
+$$
+9=\dim(\ker(Q))+\operatorname{rango}(Q)\quad\Longrightarrow\quad \boxed{\operatorname{rango}(Q)=8}.
+$$
+
+Como $\operatorname{im}(Q)\subseteq\mathbb{R}^{2n}$, se cumple $\operatorname{rango}(Q)\leq2n$, y para que el rango sea 8 hace falta $2n\geq8$:
+
+$$
+\boxed{n\geq4}.
+$$
+
+---
