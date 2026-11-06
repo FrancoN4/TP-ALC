@@ -158,22 +158,6 @@ def determinante3x3(A):
     return (A[0,0]*(A[1,1]*A[2,2] - A[1,2]*A[2,1]) - A[0,1]*(A[1,0]*A[2,2] - A[1,2]*A[2,0]) + A[0,2]*(A[1,0]*A[2,1] - A[1,1]*A[2,0]))
 
 #############################################################################################
-<<<<<<< HEAD
-
-=======
-"""
-objPts = np.zeros((77, 2))
-
-indice = 0
-
-for j in range(7):
-    for i in range(11):
-        objPts[indice] = [30*i, 30*j]
-        indice += 1
-"""
-
-#%%
->>>>>>> a2fa869 (hasta el 4)
 # ============================================================
 # EJERCICIO 3: CALIBRACIÓN CON PUNTOS COPLANARES
 # ============================================================
@@ -295,7 +279,6 @@ def estimarH(imgPts, objPts):
     )
 
     return H / norma(H.reshape((-1,)), 2)
-<<<<<<< HEAD
 
 
 def amarv(hi, hj):
@@ -463,8 +446,6 @@ def obtenerPose2D(Hj, K):
     )
 
     return R, t
-=======
->>>>>>> a2fa869 (hasta el 4)
 
 
 def amarv(hi, hj):
