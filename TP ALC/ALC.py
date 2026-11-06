@@ -1,7 +1,16 @@
+import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-import random
+import pandas as pd
+from pathlib import Path
+import os
+from matplotlib import pyplot as plt
+
+import importlib
+import ALC
+import MODULO_ALC
+
 from MODULO_ALC import rq, svd_reducida, calculaQR, multiplicacionMatricial, inversa, traspuesta, QR_con_HH, calculaCholesky, norma, productoExterno
+from ALC import determinante3x3
 
 
 
@@ -149,25 +158,6 @@ def determinante3x3(A):
     return (A[0,0]*(A[1,1]*A[2,2] - A[1,2]*A[2,1]) - A[0,1]*(A[1,0]*A[2,2] - A[1,2]*A[2,0]) + A[0,2]*(A[1,0]*A[2,1] - A[1,1]*A[2,0]))
 
 #############################################################################################
-#Ejercicio 3
-"""Ejercicio 3 a)
-Sabemos que la matriz H es de 3x3, y que si lo vectorizamos, obtenemos h, una matriz de 9x1.
-También sabemos que Q * h = 0 para Q matriz de (2n)x9
-Además, por el enunciado del tp, tenemos que lambda[u, v, 1]^T = H[U, V, 1]^T
-
-
-Como cada punto aporta 2 filas, se necesitan como mínimo n = 4 puntos para disponer de 8 filas linealmente independiente.
-Si n > 4, la eliminación gaussiana convierte en ceros las demás filas debido a que la matriz al tener 9 columnas, es imposible que haya mas de esa cantidad de filas l.i.
-
-
-Además, si en vez de 8 filas l.i, tuviera 9 (matriz cuadrada), no habría tal variable libre y la única solución de Qh = 0 sería h=0, lo cual la matriz H sería igual a 0.
-Como eso no puede pasar pues no tiene sentido físico, el numero máximo de filas l.i permitido de Q es 8.
-===> rango(Q) = 8.
-
- 
-Dado que H es una matriz que, según la definición del principio, las matrices H y lambdaH representan exactamente la misma proyección 2D para cualquier lambda != 0, todas las soluciones de la forma lambda*h_0 corresponden a la misma y única homografía física H.
-Entonces nos garantiza de esta forma que H tiene solución única a menos de un factor de escala.
-"""
 
 objPts = np.zeros((77, 2))
 
@@ -276,7 +266,7 @@ def obtenerPose2D(Hj, K):
     R[:, 0] = r1
     R[:, 1] = r2
     R[:, 2] = r3
-    
+
     U,_, Vt = svd_reducida(R)
     R_ortogonal = productoExterno(U, Vt) #
 
@@ -285,21 +275,49 @@ def obtenerPose2D(Hj, K):
         t = -t
 
     return R_ortogonal, t
-"""
+
 
 #4
 
+# Distancia de Enzo a la línea del arco
 img = cv2.imread('futbol/test-enzo-gol.png')
 
 img_rgb = img[:,:,::-1]
 
+#Mostramos la imagen con grilla para leer a ojo las coordenadas (u, v)(la grilla y los ejes son solo para el desarrollo: no están en la lista de
+#funciones permitidas, hay que sacarlos de la versión final de la entrega)
+
 plt.figure(figsize=(12,8))
 plt.imshow(img_rgb)
-plt.grid(True, color='red', linestyle='--', linewidth=0.5)
-plt.xlabel('u(pixeles horizontales)')
-plt.ylabel('v(pixeles verticales)')
-plt.title('Identificacion de pixeles (u,v)')
-plt.show()
+plt.grid(True, color='red', linestyle='--', linewidth=0.5) #
+plt.xlabel('u(pixeles horizontales)')                       #
+plt.ylabel('v(pixeles verticales)')                         #
+plt.title('Identificacion de pixeles (u,v)')                #
+plt.show()                                                  #
+
+#Puntos de referencia en la imagen (u, v), leídos del gráfico anterior
+imgPts = np.array([
+    [160, 400],  # 1. Esquina frontal izq del área grande
+    [980, 400],  # 2. Esquina frontal der del área grande
+    [280,  98],  # 3. Línea de meta / área grande (izq)
+    [745,  98],  # 4. Línea de meta / área grande (der)
+    [362, 175],  # 5. Esquina frontal izq del área chica
+    [628, 175],  # 6. Esquina frontal der del área chica
+    [478, 255],  # 7. Punto penal
+], dtype=np.float32)
+
+#Los mismos puntos en coordenadas de la cancha (X, Y) en metros, con el origen en la esquina del arco y X medido desde la línea de meta.
+#Mismo orden que imgPts (el punto i de uno corresponde al punto i del otro) 
+objPts = np.array([
+    [16.5, 13.84],  # 1. Esquina frontal izq del área grande
+    [16.5, 54.16],  # 2. Esquina frontal der del área grande
+    [ 0.0, 13.84],  # 3. Línea de meta / área grande (izq)
+    [ 0.0, 54.16],  # 4. Línea de meta / área grande (der)
+    [ 5.5, 24.84],  # 5. Esquina frontal izq del área chica
+    [ 5.5, 43.16],  # 6. Esquina frontal der del área chica
+    [11.0, 34.00],  # 7. Punto penal
+], dtype=np.float32)
+
 
 #a
 
@@ -323,4 +341,3 @@ y_real = pt_real[1]/pt_real[2]
 dist_linea_meta = np.abs(x_real)
 print(f"Coordenadas reales(X,Y):({x_real:.2f},{y_real:.2f})")
 print(f"Distancia a la meta{dist_linea_meta:.2f}metros")
-"""
