@@ -9,9 +9,11 @@ import importlib
 import ALC
 import MODULO_ALC
 
-from MODULO_ALC import rq, svd_reducida, calculaQR, multiplicacionMatricial, inversa, traspuesta, QR_con_HH, calculaCholesky, norma, productoExterno, productoInterno, calcularAx
+from MODULO_ALC import rq, svd_reducida, calculaQR, multiplicacionMatricial, inversa, traspuesta, QR_con_HH, calculaCholesky, norma, productoExterno, diagRH, productoInterno
 
 
+#%%
+#Ejercicio 2
 #A
 def obtenerQ3d(imgPts, objPts):
 
@@ -32,7 +34,7 @@ def resolverDLT3D(Q):
     U, S, Vt = svd_reducida(Q)  # Descomposición en valores singulares de Q
     M = Vt[-1,:].reshape(3, 4)  # Tomamos la última fila de Vt y la reestructuramos en una matriz 3x4
     return M
-
+"""
 #C
 def devolverMatricesCalibracion3d(M):
     if (determinante3x3(M[:, :3]) < 0): #Si la matriz A = K*R tiene determinante negativa, le cambiamos el signo a la matriz ya que M ~ -M
@@ -74,7 +76,7 @@ def devolverMatricesCalibracion3d(M):
     t = multiplicacionMatricial(inversa(K), b)
 
     return R, t.reshape(3), K
-
+"""
 #Al correr esto deberia quedar algo como Q:(24x12), M:(3x4), K,R: (3x3) y t:(1x3)
 
 #D
@@ -156,7 +158,22 @@ def determinante3x3(A):
     return (A[0,0]*(A[1,1]*A[2,2] - A[1,2]*A[2,1]) - A[0,1]*(A[1,0]*A[2,2] - A[1,2]*A[2,0]) + A[0,2]*(A[1,0]*A[2,1] - A[1,1]*A[2,0]))
 
 #############################################################################################
+<<<<<<< HEAD
 
+=======
+"""
+objPts = np.zeros((77, 2))
+
+indice = 0
+
+for j in range(7):
+    for i in range(11):
+        objPts[indice] = [30*i, 30*j]
+        indice += 1
+"""
+
+#%%
+>>>>>>> a2fa869 (hasta el 4)
 # ============================================================
 # EJERCICIO 3: CALIBRACIÓN CON PUNTOS COPLANARES
 # ============================================================
@@ -278,6 +295,7 @@ def estimarH(imgPts, objPts):
     )
 
     return H / norma(H.reshape((-1,)), 2)
+<<<<<<< HEAD
 
 
 def amarv(hi, hj):
@@ -445,8 +463,176 @@ def obtenerPose2D(Hj, K):
     )
 
     return R, t
+=======
+>>>>>>> a2fa869 (hasta el 4)
 
 
+def amarv(hi, hj):
+    """
+    Recibe dos columnas de una homografía, de forma (3,).
+    Devuelve los seis coeficientes de la restricción hi.T*B*hj,
+    donde B es simétrica.
+    """
+    return np.array([
+        hi[0]*hj[0],
+        hi[0]*hj[1] + hi[1]*hj[0],
+        hi[1]*hj[1],
+        hi[2]*hj[0] + hi[0]*hj[2],
+        hi[2]*hj[1] + hi[1]*hj[2],
+        hi[2]*hj[2]
+    ])
+
+
+def armarA(Hlst):
+    """
+    Recibe:
+        Hlst: lista de homografías del plano a la imagen.
+
+    Devuelve:
+        A: matriz de forma (2*len(Hlst), 6) con las restricciones
+           para estimar los parámetros intrínsecos.
+    """
+    filas = []
+
+    for H in Hlst:
+        h1 = H[:, 0]
+        h2 = H[:, 1]
+
+        # Ortogonalidad: h1.T*B*h2 = 0.
+        filas.append(amarv(h1, h2))
+
+        # Igual norma: h1.T*B*h1 - h2.T*B*h2 = 0.
+        filas.append(amarv(h1, h1) - amarv(h2, h2))
+
+    return np.array(filas)
+
+
+def calcularMatrizK2D(A):
+    """
+    Recibe:
+        A: matriz de restricciones de las homografías.
+
+    Devuelve:
+        K: matriz intrínseca triangular superior,
+           normalizada con K[2, 2] = 1.
+
+    Requiere que la B estimada sea definida positiva, salvo signo.
+    """
+    b = vectorMinimoDLT(A)
+
+    # Orden de b: B11, B12, B22, B13, B23, B33.
+    B = np.array([
+        [b[0], b[1], b[3]],
+        [b[1], b[2], b[4]],
+        [b[3], b[4], b[5]]
+    ])
+
+    # B y -B resuelven el mismo sistema homogéneo.
+    if B[2, 2] < 0:
+        B = -B
+
+    # Reescalamos para facilitar las operaciones numéricas.
+    if B[2, 2] == 0:
+        raise ValueError("La matriz B estimada no permite recuperar K.")
+
+    B = B / B[2, 2]
+
+    # Comprobamos definición positiva mediante los menores principales.
+    menor2 = B[0, 0]*B[1, 1] - B[0, 1]*B[1, 0]
+
+    det_B = (
+        B[0, 0]*(B[1, 1]*B[2, 2] - B[1, 2]*B[2, 1])
+        - B[0, 1]*(B[1, 0]*B[2, 2] - B[1, 2]*B[2, 0])
+        + B[0, 2]*(B[1, 0]*B[2, 1] - B[1, 1]*B[2, 0])
+    )
+
+    if B[0, 0] <= 0 or menor2 <= 0 or det_B <= 0:
+        raise ValueError(
+            "B no es definida positiva. Revisar las correspondencias, "
+            "la diversidad de las vistas y la resolución del sistema."
+        )
+
+    # B es proporcional a K^-T*K^-1.
+    # Si B = L*L.T, entonces K es proporcional a L^-T.
+    L = calculaCholesky(B)
+    K = inversa(L.T)
+
+    return K / K[2, 2]
+
+
+def obtenerPose2D(Hj, K):
+    """
+    Recibe:
+        Hj: homografía del plano del objeto a la imagen.
+        K: matriz intrínseca.
+
+    Devuelve:
+        R: rotación de objeto a cámara, de forma (3, 3).
+        t: traslación de forma (3,), en las unidades de objPts.
+    """
+    columnas = multiplicacionMatricial(inversa(K), Hj)
+
+    a1 = columnas[:, 0]
+    a2 = columnas[:, 1]
+    a3 = columnas[:, 2]
+
+    # Las dos primeras columnas proporcionan estimaciones de la escala.
+    denominador = norma(a1, 2) + norma(a2, 2)
+
+    if denominador == 0:
+        raise ValueError("La homografía no permite recuperar la pose.")
+
+    escala = 2 / denominador
+
+    # Elegimos el signo que sitúa el origen delante de la cámara.
+    if a3[2] < 0:
+        escala = -escala
+
+    r1 = escala * a1
+    r2 = escala * a2
+    t = escala * a3
+
+    # Tercera columna: producto vectorial r1 x r2.
+    r3 = np.array([
+        r1[1]*r2[2] - r1[2]*r2[1],
+        r1[2]*r2[0] - r1[0]*r2[2],
+        r1[0]*r2[1] - r1[1]*r2[0]
+    ])
+
+    R_aprox = np.zeros((3, 3))
+    R_aprox[:, 0] = r1
+    R_aprox[:, 1] = r2
+    R_aprox[:, 2] = r3
+
+    # Proyectamos la estimación sobre las matrices de rotación.
+    # Tu SVD devuelve V, no V.T.
+    U, valores, V = svd_reducida(R_aprox)
+
+    if valores.shape[0] != 3:
+        raise ValueError("La rotación aproximada no tiene rango 3.")
+
+    UVt = multiplicacionMatricial(U, V.T)
+
+    det_UVt = (
+        UVt[0, 0]*(UVt[1, 1]*UVt[2, 2] - UVt[1, 2]*UVt[2, 1])
+        - UVt[0, 1]*(UVt[1, 0]*UVt[2, 2] - UVt[1, 2]*UVt[2, 0])
+        + UVt[0, 2]*(UVt[1, 0]*UVt[2, 1] - UVt[1, 1]*UVt[2, 0])
+    )
+
+    S = np.eye(3)
+
+    # Corregimos una posible reflexión sin cambiar el signo de t.
+    # La SVD ordena los valores singulares de mayor a menor.
+    if det_UVt < 0:
+        S[2, 2] = -1
+
+    R = multiplicacionMatricial(
+        multiplicacionMatricial(U, S),
+        V.T
+    )
+
+    return R, t
+#%%
 """
 ------------------------------------------------------------------------------------------------------------------------------------------------
 """
@@ -500,7 +686,7 @@ def poseYReproyeccionEj5b(archivo_txt,K,archivo_jpg):
     R, t = obtenerPose2D(H, K)
 
 
-
+#%%
 # ============================================================
 # EJERCICIO 6: RESOLUCIÓN DEL ENUNCIADO
 # ============================================================
