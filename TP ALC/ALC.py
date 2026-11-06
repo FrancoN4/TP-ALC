@@ -9,9 +9,7 @@ import importlib
 import ALC
 import MODULO_ALC
 
-from MODULO_ALC import rq, svd_reducida, calculaQR, multiplicacionMatricial, inversa, traspuesta, QR_con_HH, calculaCholesky, norma, productoExterno
-from ALC import determinante3x3
-
+from MODULO_ALC import rq, svd_reducida, calculaQR, multiplicacionMatricial, inversa, traspuesta, QR_con_HH, calculaCholesky, norma, productoExterno, productoInterno, calcularAx
 
 
 #A
@@ -179,7 +177,7 @@ def obtenerQ2d(imgPts, objPts):
         U, V = objPts[i]   # coordenadas del sist. de referencia de la vida real para las esquinas internas del tablero (matriz de 11x7) (2d). "objPts[i]" es una tupla de (U_i, V_i).
         u, v = imgPts[i]   # par de coordenadas de la imagen del objeto (2d).
 
-        Q[2*i] = [U, V, 1, 0, 0, 0, U, V, 1, -u*U, -u*V, -u]   # filas de Q pares (según ec. 11 del enunciado del tp).
+        Q[2*i] = [U, V, 1, 0, 0, 0, -u*U, -u*V, -u]   # filas de Q pares (según ec. 11 del enunciado del tp).
 
         Q[2*i + 1] = [0, 0, 0, U, V, 1, -v*U, -v*V, -v] # filas de Q impares (según ec. 11 del enunciado del tp).
 
@@ -340,70 +338,389 @@ def estimarH(imgPts, objPts):
     return H / norma(H.reshape(-1), 2)
 
 
+"""
+------------------------------------------------------------------------------------------------------------------------------------------------
+"""
+
+#Ejercicio 5 a):
+def parametrosIntrinsecosEj5a():
+    world_img_pts = pd.read_csv(r'\salguero\world_img_pts.csv')
+
+    objPts = world_img_pts[["X", "Y"]].values
+    H_lista = []
+
+#Calculo H_0:
+    imgPts_0 = world_img_pts[["u_0","v_0"]].values  # Extrae todas las filas de las columnas "u_0" y "v_0", osea matriz de (n,2)
+    H_0 = estimarH(imgPts_0, objPts)
+    H_lista.append(H_0)
+
+#Calculo H_1:
+    imgPts_1 = world_img_pts[["u_1","v_1"]].values  # Extrae todas las filas de las columnas "u_1" y "v_1", osea matriz de (n,2)
+    H_1 = estimarH(imgPts_1,objPts)
+    H_lista.append(H_1)
+
+#Calculo H_2:
+    imgPts_2 = world_img_pts[["u_2","v_2"]].values  # Extrae todas las filas de las columnas "u_2" y "v_2", osea matriz de (n,2)
+    H_2 = estimarH(imgPts_2, objPts)
+    H_lista.append(H_2)
+
+#Calculo H_3:
+    imgPts_3 = world_img_pts[["u_3","v_3"]].values  # Extrae todas las filas de las columnas "u_3" y "v_3", osea matriz de (n,2)
+    H_3 = estimarH(imgPts_3, objPts)
+    H_lista.append(H_3)
+
+
+#Construimos la matriz A:
+    A = armarA(H_lista)
+
+#Obtenemos la matriz K con la matriz A:
+    K = calcularMatrizK2D(A)
+
+    return K
+
+
+def poseYReproyeccionEj5b(archivo_txt,K,archivo_jpg):
+    datos = np.loadtxt(archivo_txt)
+    objPts = traspuesta(datos[1:3, :])  #Extraemos ejes X,Y de la foto 2d. Matriz de (51x2)
+    imgPts = traspuesta(datos[4:6, :])  #Extraemos u, v que son las coordenadas en píxeles (u la columna y v la fila de la foto). Matriz de (51x2)
+
+#Calculamos H (homografía) usando los datos del archivo txt:
+    H = estimarH(imgPts, objPts)
+
+#Calculamos la matriz R (matriz de rotacion que define la orientación 3d de la camara) y t (que es un vector que define la posición fisica 3d de la cámara) usando H y K:
+    R, t = obtenerPose2D(H, K)
 
 
 
-#4
+# ============================================================
+# EJERCICIO 6: RESOLUCIÓN DEL ENUNCIADO
+# ============================================================
 
-# Distancia de Enzo a la línea del arco
-img = cv2.imread('futbol/test-enzo-gol.png')
-
-img_rgb = img[:,:,::-1]
-
-#Mostramos la imagen con grilla para leer a ojo las coordenadas (u, v)(la grilla y los ejes son solo para el desarrollo: no están en la lista de
-#funciones permitidas, hay que sacarlos de la versión final de la entrega)
-
-plt.figure(figsize=(12,8))
-plt.imshow(img_rgb)
-plt.grid(True, color='red', linestyle='--', linewidth=0.5) #
-plt.xlabel('u(pixeles horizontales)')                       #
-plt.ylabel('v(pixeles verticales)')                         #
-plt.title('Identificacion de pixeles (u,v)')                #
-plt.show()                                                  #
-
-#Puntos de referencia en la imagen (u, v), leídos del gráfico anterior
-imgPts = np.array([
-    [160, 400],  # 1. Esquina frontal izq del área grande
-    [980, 400],  # 2. Esquina frontal der del área grande
-    [280,  98],  # 3. Línea de meta / área grande (izq)
-    [745,  98],  # 4. Línea de meta / área grande (der)
-    [362, 175],  # 5. Esquina frontal izq del área chica
-    [628, 175],  # 6. Esquina frontal der del área chica
-    [478, 255],  # 7. Punto penal
-], dtype=np.float32)
-
-#Los mismos puntos en coordenadas de la cancha (X, Y) en metros, con el origen en la esquina del arco y X medido desde la línea de meta.
-#Mismo orden que imgPts (el punto i de uno corresponde al punto i del otro) 
-objPts = np.array([
-    [16.5, 13.84],  # 1. Esquina frontal izq del área grande
-    [16.5, 54.16],  # 2. Esquina frontal der del área grande
-    [ 0.0, 13.84],  # 3. Línea de meta / área grande (izq)
-    [ 0.0, 54.16],  # 4. Línea de meta / área grande (der)
-    [ 5.5, 24.84],  # 5. Esquina frontal izq del área chica
-    [ 5.5, 43.16],  # 6. Esquina frontal der del área chica
-    [11.0, 34.00],  # 7. Punto penal
-], dtype=np.float32)
+# a)
+# Se seleccionan el centro y los cuatro vértices exteriores de la H.
+# El punto blanco identifica la esquina superior izquierda.
+# Las correspondencias siguen el orden de object_points.csv.
 
 
-#a
+# b)
+def calculoLambdaMu(I0, J0):
+    """
+    Recibe los vectores 3D I0 y J0 del paso POS.
+    Devuelve un par (lambda, mu); la otra solución es (-lambda, -mu).
+    """
+    # Restricciones: lambda² - mu² = a y 2*lambda*mu = b.
+    a = productoInterno(J0, J0) - productoInterno(I0, I0)
+    b = -2 * productoInterno(I0, J0)
 
-Q = obtenerQ2d(imgPts, objPts)
+    r = np.sqrt(a*a + b*b)
 
-U,S,V_t = svd_reducida(Q)
+    # Los argumentos son no negativos; max evita negativos por redondeo.
+    lbd = np.sqrt(max(0.0, (r + a) / 2))
+    mu = np.sqrt(max(0.0, (r - a) / 2))
 
-h = V_t[:,-1]
-H = h.reshape(3,3)
+    if b < 0:
+        mu = -mu
 
-H = H / H[2,2]
+    # La otra solución se obtiene cambiando ambos signos.
+    return lbd, mu
 
-u = 810     #???
-v = 520     #???
 
-pt_real = productoExterno(inversa(H), np.array([u,v,1])) #transformamos el punto (x,v) a coordenadas reales (x,Y) usando la homografica H
+# c)
+def calcularSalidaPOSIT(Is, Js, fx, m0, M0):
+    """
+    Recibe una solución Is, Js, la focal fx, la imagen de referencia
+    m0 centrada y ajustada a fx, y el punto 3D de referencia M0.
+    Devuelve i, j, k, Z0, R y t, con transformación objeto a cámara.
+    """
+    normaI = norma(Is, 2)
+    normaJ = norma(Js, 2)
 
-x_real = pt_real[0]/pt_real[2]
-y_real = pt_real[1]/pt_real[2]
+    # Recuperamos la profundidad y los ejes unitarios.
+    Z0 = fx / normaI
+    i = Is / normaI
+    j = Js / normaJ
 
-dist_linea_meta = np.abs(x_real)
-print(f"Coordenadas reales(X,Y):({x_real:.2f},{y_real:.2f})")
-print(f"Distancia a la meta{dist_linea_meta:.2f}metros")
+    # El tercer eje completa una base con orientación derecha.
+    k = np.array([
+        i[1]*j[2] - i[2]*j[1],
+        i[2]*j[0] - i[0]*j[2],
+        i[0]*j[1] - i[1]*j[0]
+    ])
+
+    R = np.array([i, j, k])
+
+    # m0 está centrado y su coordenada vertical está ajustada a fx.
+    T0 = np.array([
+        Z0 * m0[0] / fx,
+        Z0 * m0[1] / fx,
+        Z0
+    ])
+
+    # T0 = R*M0 + t: convertimos la posición de referencia en traslación.
+    RM0 = multiplicacionMatricial(
+        R, M0.reshape((3, 1))
+    ).reshape((3,))
+
+    t = T0 - RM0
+
+    return i, j, k, Z0, R, t
+
+
+# d)
+def evaluarPose(R, t, obj_vecs, img_vecs, K):
+    """
+    Recibe la pose objeto a cámara, los puntos 3D, sus correspondencias
+    en píxeles originales y la matriz intrínseca K.
+    Devuelve la cantidad de puntos delante de la cámara y su RMS en píxeles.
+    """
+    cantidad_validas = 0
+    suma_errores = 0.0
+    N = obj_vecs.shape[0]
+
+    for idx in range(N):
+        # Transformamos el punto del sistema del objeto al de la cámara.
+        punto_cam = multiplicacionMatricial(
+            R, obj_vecs[idx].reshape((3, 1))
+        ).reshape((3,)) + t
+
+        # Una proyección es válida si el punto está delante de la cámara.
+        if punto_cam[2] > 0:
+            cantidad_validas += 1
+
+            q = multiplicacionMatricial(
+                K, punto_cam.reshape((3, 1))
+            ).reshape((3,))
+
+            # Pasamos de coordenadas homogéneas a píxeles.
+            u = q[0] / q[2]
+            v = q[1] / q[2]
+
+            du = u - img_vecs[idx, 0]
+            dv = v - img_vecs[idx, 1]
+            suma_errores += du*du + dv*dv
+
+    # RMS de las proyecciones válidas, expresado en píxeles.
+    if cantidad_validas > 0:
+        rms = np.sqrt(suma_errores / cantidad_validas)
+    else:
+        rms = float("inf")
+
+    return cantidad_validas, rms
+
+
+# e)
+def aplicarPOSIT(obj_vecs, img_vecs, K, MaxIt, atol):
+    """
+    Recibe puntos 3D coplanares y sus correspondencias 2D por filas,
+    la matriz K sin sesgo, el máximo de iteraciones y la tolerancia del RMS.
+    Devuelve R y t de la pose estimada, con transformación objeto a cámara.
+    """
+    if MaxIt < 1:
+        raise ValueError("MaxIt debe ser al menos 1.")
+
+    N = obj_vecs.shape[0]
+    M0 = obj_vecs[0]
+
+    fx = K[0, 0]
+    fy = K[1, 1]
+    cu = K[0, 2]
+    cv = K[1, 2]
+
+    # Cada fila contiene el desplazamiento desde M0 a otro punto.
+    A = np.zeros((N - 1, 3))
+
+    for idx in range(1, N):
+        A[idx - 1] = obj_vecs[idx] - M0
+
+    # Centramos los píxeles y expresamos ambas coordenadas con focal fx.
+    # Esta conversión supone K[0, 1] = 0.
+    imagen_posit = np.zeros((N, 2))
+
+    for idx in range(N):
+        imagen_posit[idx, 0] = img_vecs[idx, 0] - cu
+        imagen_posit[idx, 1] = (
+            (img_vecs[idx, 1] - cv) * fx / fy
+        )
+
+    m0 = imagen_posit[0]
+
+    # A+ = V * Sigma^-1 * U.T; se calcula una sola vez.
+    U, valores, V = svd_reducida(A)
+
+    rango = valores.shape[0]
+    if rango != 2:
+        raise ValueError("Se requieren puntos coplanares de rango 2.")
+
+    S_inv = np.zeros((rango, rango))
+
+    for idx in range(rango):
+        S_inv[idx, idx] = 1 / valores[idx]
+
+    A_pinv = multiplicacionMatricial(
+        multiplicacionMatricial(V, S_inv),
+        U.T
+    )
+
+    # Las columnas de V generan el plano; su producto vectorial es normal.
+    v1 = V[:, 0]
+    v2 = V[:, 1]
+
+    normal = np.array([
+        v1[1]*v2[2] - v1[2]*v2[1],
+        v1[2]*v2[0] - v1[0]*v2[2],
+        v1[0]*v2[1] - v1[1]*v2[0]
+    ])
+    normal = normal / norma(normal, 2)
+
+    # La primera iteración usa la aproximación ortográfica escalada.
+    eps = np.zeros(N - 1)
+    rms_anterior = None
+
+    for it in range(MaxIt):
+        b_u = np.zeros(N - 1)
+        b_v = np.zeros(N - 1)
+
+        for idx in range(1, N):
+            b_u[idx - 1] = (
+                imagen_posit[idx, 0] * (1 + eps[idx - 1]) - m0[0]
+            )
+            b_v[idx - 1] = (
+                imagen_posit[idx, 1] * (1 + eps[idx - 1]) - m0[1]
+            )
+
+        # Resolvemos los dos sistemas por mínimos cuadrados.
+        I0 = multiplicacionMatricial(
+            A_pinv, b_u.reshape((N - 1, 1))
+        ).reshape((3,))
+
+        J0 = multiplicacionMatricial(
+            A_pinv, b_v.reshape((N - 1, 1))
+        ).reshape((3,))
+
+        lam, mu = calculoLambdaMu(I0, J0)
+
+        mejor_rms = float("inf")
+        mejor_pose = None
+
+        # Evaluamos las dos soluciones del caso coplanar.
+        for signo in [1, -1]:
+            Is = I0 + signo * lam * normal
+            Js = J0 + signo * mu * normal
+
+            i, j, k, Z0, R, t = calcularSalidaPOSIT(
+                Is, Js, fx, m0, M0
+            )
+
+            validas, rms = evaluarPose(
+                R, t, obj_vecs, img_vecs, K
+            )
+
+            # Solo compiten poses con todos los puntos delante.
+            if validas == N and rms < mejor_rms:
+                mejor_rms = rms
+                mejor_pose = (i, j, k, Z0, R, t)
+
+        if mejor_pose is None:
+            raise ValueError(
+                "Ninguna pose tiene todos los puntos delante de la cámara."
+            )
+
+        i, j, k, Z0, R, t = mejor_pose
+
+        # Detenemos si empeora o si la mejora es menor que atol.
+        if rms_anterior is not None:
+            mejora = rms_anterior - mejor_rms
+
+            if mejora < 0:
+                return R_anterior, t_anterior
+
+            if mejora < atol:
+                return R, t
+
+        rms_anterior = mejor_rms
+        R_anterior = R
+        t_anterior = t
+
+        # Actualizamos la perspectiva para la siguiente iteración.
+        for idx in range(N - 1):
+            eps[idx] = productoInterno(A[idx], k) / Z0
+
+    return R, t
+
+
+# CARGA DE DATOS PARA APLICAR EL MÉTODO
+
+# Orden: centro, superior izquierda, superior derecha,
+# inferior derecha, inferior izquierda.
+img_vecs = np.array([
+    [522.52398332, 1002.07768509],
+    [400.73044838, 1095.50834202],
+    [390.72002086,  943.68352450],
+    [642.64911366,  910.31543274],
+    [657.66475495, 1060.47184567]
+])
+
+datos = pd.read_csv(
+    os.path.join("heli", "object_points.csv"),
+    delimiter=";"
+)
+obj_vecs = np.asarray(datos[["U [m]", "V [m]", "W [m]"]])
+
+K = np.loadtxt(
+    os.path.join("heli", "K.csv"),
+    delimiter=";"
+)
+
+MaxIt = 100
+atol = 1e-6
+
+
+# f)
+
+# Estimamos la pose actual: P_camara = R_actual * P_objeto + t_actual.
+R_actual, t_actual = aplicarPOSIT(
+    obj_vecs, img_vecs, K, MaxIt, atol
+)
+
+# La posición de la cámara en el sistema de la H es C = -R.T * t.
+C_actual = -multiplicacionMatricial(
+    R_actual.T, t_actual.reshape((3, 1))
+).reshape((3,))
+
+# Elección: conservar la altura actual, pues el enunciado no fija otra.
+# Convención: U hacia la derecha de la H, V hacia arriba y W hacia arriba del suelo.
+h = C_actual[2]
+
+R_deseada = np.array([
+    [1,  0,  0],
+    [0, -1,  0],
+    [0,  0, -1]
+])
+
+C_deseada = np.array([0, 0, h])
+
+t_deseada = -multiplicacionMatricial(
+    R_deseada, C_deseada.reshape((3, 1))
+).reshape((3,))
+
+# Movimiento de la cámara expresado en los ejes de la H.
+desplazamiento = C_deseada - C_actual
+
+rotacion_movimiento = multiplicacionMatricial(
+    R_deseada.T, R_actual
+)
+
+# Presentación de los resultados del inciso f).
+print("Pose actual, objeto a cámara:")
+print(R_actual)
+print(t_actual)
+
+print("Pose deseada, objeto a cámara:")
+print(R_deseada)
+print(t_deseada)
+
+print("Desplazamiento en los ejes de la H [m]:")
+print(desplazamiento)
+
+print("Rotación del movimiento en los ejes de la H:")
+print(rotacion_movimiento)
