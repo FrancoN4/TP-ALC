@@ -276,6 +276,72 @@ def obtenerPose2D(Hj, K):
 
     return R_ortogonal, t
 
+def normalizarHartley(pts):
+    """
+    Normalización isotrópica de Hartley para un conjunto de puntos 2D.
+
+    Parámetros:
+        pts: array de n x 2 con los puntos (u, v) o (U, V).
+
+    Devuelve:
+        pts_norm: array de n x 2 con los puntos normalizados (centroide en el
+                  origen y distancia media al origen igual a sqrt(2)).
+        T: matriz de 3 x 3 que lleva los puntos originales a los normalizados,
+           en coordenadas homogéneas: p_norm = T * p.
+    """
+    # Centroide de los puntos: lo vamos a trasladar al origen
+    centroide = np.mean(pts, axis=0)
+    dif = pts - centroide
+
+    # Distancia media de los puntos (ya centrados) al origen
+    dist_media = np.mean(np.sqrt(np.sum(dif**2, axis=1)))
+
+    # Factor de escala para que esa distancia media pase a ser sqrt(2)
+    s = np.sqrt(2) / dist_media
+
+    # Matriz de normalización: primero trasladamos (-centroide), después escalamos (s)
+    T = np.array([[s, 0, -s*centroide[0]],
+                  [0, s, -s*centroide[1]],
+                  [0, 0, 1]])
+
+    # Los puntos normalizados son los centrados y escalados
+    return dif * s, T
+
+
+def estimarH(imgPts, objPts):
+    """
+    Estima la homografía H que lleva puntos del plano del mundo a la imagen,
+    usando DLT con normalización de Hartley.
+
+    Parámetros:
+        imgPts: array de n x 2 con los píxeles (u, v).
+        objPts: array de n x 2 con los puntos del plano (U, V), en el mismo
+                orden que imgPts (el punto i de uno corresponde al i del otro).
+
+    Devuelve:
+        H: matriz de 3 x 3 tal que (u, v, 1) ~ H * (U, V, 1), normalizada para
+           tener norma de Frobenius igual a 1 (H está definida salvo escala).
+    """
+    # Normalizamos por separado los puntos del mundo y los de la imagen
+    objN, Tw = normalizarHartley(objPts)
+    imgN, Ti = normalizarHartley(imgPts)
+
+    # Armamos Q (ecuación 11) con los puntos normalizados y resolvemos Qh = 0
+    # tomando el último vector singular (mínimo de ||Qh|| con ||h|| = 1)
+    Q = obtenerQ2d(imgN, objN)
+    _, _, V = svd_reducida(Q)
+    Hn = V[:, -1].reshape(3, 3)   # homografía en coordenadas normalizadas
+
+    # Desnormalizamos (ecuación 14): H = Ti^-1 * Hn * Tw
+    H = multiplicacionMatricial(inversa(Ti), multiplicacionMatricial(Hn, Tw))
+
+    # H solo se conoce salvo escala: la normalizamos por su norma de Frobenius
+    # (más estable que dividir por H[2, 2], que puede ser casi cero)
+    return H / norma(H.reshape(-1), 2)
+
+
+
+
 
 #4
 
