@@ -157,185 +157,294 @@ def determinante3x3(A):
 
 #############################################################################################
 
-objPts = np.zeros((77, 2))
-
-indice = 0
-
-for j in range(7):
-    for i in range(11):
-        objPts[indice] = [30*i, 30*j]
-        indice += 1
-
-
+# ============================================================
+# EJERCICIO 3: CALIBRACIÓN CON PUNTOS COPLANARES
+# ============================================================
 
 def obtenerQ2d(imgPts, objPts):
+    """
+    Recibe:
+        imgPts: coordenadas de imagen, de forma (n, 2).
+        objPts: coordenadas del plano, de forma (n, 2).
+        Las filas deben corresponder al mismo punto.
 
-    n = objPts.shape[0]   # cantidad de esquinas internas del tablero.
-    Q = np.zeros((2*n, 9)) # matriz de (2n)x9 (tamaño de Q según ec. 11 del enunciado del tp).
+    Devuelve:
+        Q: matriz de forma (2*n, 9) del sistema DLT.
+    """
+    n = objPts.shape[0]
+    Q = np.zeros((2*n, 9))
 
-    for i in range(0,n):
-        U, V = objPts[i]   # coordenadas del sist. de referencia de la vida real para las esquinas internas del tablero (matriz de 11x7) (2d). "objPts[i]" es una tupla de (U_i, V_i).
-        u, v = imgPts[i]   # par de coordenadas de la imagen del objeto (2d).
+    for idx in range(n):
+        U, V = objPts[idx]
+        u, v = imgPts[idx]
 
-        Q[2*i] = [U, V, 1, 0, 0, 0, -u*U, -u*V, -u]   # filas de Q pares (según ec. 11 del enunciado del tp).
+        # Cada correspondencia aporta dos ecuaciones.
+        Q[2*idx] = [
+            U, V, 1,
+            0, 0, 0,
+            -u*U, -u*V, -u
+        ]
 
-        Q[2*i + 1] = [0, 0, 0, U, V, 1, -v*U, -v*V, -v] # filas de Q impares (según ec. 11 del enunciado del tp).
+        Q[2*idx + 1] = [
+            0, 0, 0,
+            U, V, 1,
+            -v*U, -v*V, -v
+        ]
 
     return Q
 
 
-def amarv(hi, hj):
+def vectorMinimoDLT(A):
+    """
+    Recibe una matriz real A.
+    Devuelve un vector unitario que minimiza ||A*x||_2.
 
-    v_ij = np.array([
-        hi[0] * hj[0],
-        hi[0] * hj[1] + hi[1] * hj[0],
-        hi[1] * hj[1],
-        hi[2] * hj[0] + hi[0] * hj[2],
-        hi[2] * hj[1] + hi[1] * hj[2],
-        hi[2] * hj[2]
-        ])
+    Utiliza el autovector de A.T*A asociado al menor autovalor,
+    incluyendo los autovalores nulos.
+    """
+    AtA = multiplicacionMatricial(A.T, A)
+    V, D = diagRH(AtA)
 
-    return v_ij
+    indice_min = 0
 
+    for idx in range(1, D.shape[0]):
+        if D[idx, idx] < D[indice_min, indice_min]:
+            indice_min = idx
 
-def armarA(Hlst):
-    filas_A = []
+    vector = V[:, indice_min]
+    return vector / norma(vector, 2)
 
-    for H in Hlst:  
-        h1 = H[:, 0]
-        h2 = H[:, 1]
-
-        v12 = amarv(h1, h2)
-        v11 = amarv(h1, h1)
-        v22 = amarv(h2, h2)
-
-        filas_A.append(v12)
-        filas_A.append(v11 - v22)
-
-    A = np.array(filas_A)
-
-    return A
-
-
-def calcularMatrizK2D(A):
-    _,_, V = svd_reducida(A)
-    b = V[-1]
-
-    #Sabemos que b = [b0, b1, b2, b3, b4, b5] y como B es simétrica entonces tenemos que:
-
-    B = np.array([[b[0], b[1], b[3]],
-                  [b[1], b[2], b[4]], 
-                  [b[3], b[4], b[5]]
-               ])
-
-    if B[2, 2] < 0:
-        B = -B
-
-    L = calculaCholesky(B)
-    K = inversa(traspuesta(L))
-    K = K / K[2, 2] # Normalizamos para que K[2, 2] == 1
-
-    return K
-
-def obtenerPose2D(Hj, K):
-    K_inv = inversa(K)
-    R_t = multiplicacionMatricial(K_inv, Hj)  # R_t = K^-1 * H
-
-    a1 = R_t[:, 0]
-    a2 = R_t[:, 1]
-    a3 = R_t[:, 2]
-
-    escalar = 1 / norma(a1)
-
-    # Forzamos que la profundidad sea positiva.
-    if (a3[2] < 0):
-        escalar = -escalar
-
-    #Recuperamos los vectores de R (r1 y r2) y el de traslacion (t) 
-    r1 = a1 * escalar
-    r2 = a2 * escalar
-    t = a3 * escalar
-
-    r3 = productoExterno(r1, r2)  # r3 = r1 x r2
-
-    # Rearmamos R y luego buscamos la mejor aproximación ortonormal usando SVD
-    R = np.zeros((3,3))
-
-    R[:, 0] = r1
-    R[:, 1] = r2
-    R[:, 2] = r3
-
-    U,_, Vt = svd_reducida(R)
-    R_ortogonal = productoExterno(U, Vt) #
-
-    if determinante3x3(R_ortogonal) < 0:    #???
-        R_ortogonal = -R_ortogonal
-        t = -t
-
-    return R_ortogonal, t
 
 def normalizarHartley(pts):
     """
-    Normalización isotrópica de Hartley para un conjunto de puntos 2D.
-
-    Parámetros:
-        pts: array de n x 2 con los puntos (u, v) o (U, V).
+    Recibe:
+        pts: puntos 2D de forma (n, 2).
 
     Devuelve:
-        pts_norm: array de n x 2 con los puntos normalizados (centroide en el
-                  origen y distancia media al origen igual a sqrt(2)).
-        T: matriz de 3 x 3 que lleva los puntos originales a los normalizados,
-           en coordenadas homogéneas: p_norm = T * p.
+        pts_norm: puntos centrados y escalados para que su
+                  distancia media al origen sea sqrt(2).
+        T: matriz homogénea que transforma los puntos originales
+           en los normalizados.
     """
-    # Centroide de los puntos: lo vamos a trasladar al origen
     centroide = np.mean(pts, axis=0)
-    dif = pts - centroide
+    diferencias = pts - centroide
 
-    # Distancia media de los puntos (ya centrados) al origen
-    dist_media = np.mean(np.sqrt(np.sum(dif**2, axis=1)))
+    distancias = np.sqrt(np.sum(diferencias**2, axis=1))
+    distancia_media = np.mean(distancias)
 
-    # Factor de escala para que esa distancia media pase a ser sqrt(2)
-    s = np.sqrt(2) / dist_media
+    if distancia_media == 0:
+        raise ValueError("No se pueden normalizar puntos coincidentes.")
 
-    # Matriz de normalización: primero trasladamos (-centroide), después escalamos (s)
-    T = np.array([[s, 0, -s*centroide[0]],
-                  [0, s, -s*centroide[1]],
-                  [0, 0, 1]])
+    escala = np.sqrt(2) / distancia_media
 
-    # Los puntos normalizados son los centrados y escalados
-    return dif * s, T
+    T = np.array([
+        [escala, 0, -escala*centroide[0]],
+        [0, escala, -escala*centroide[1]],
+        [0, 0, 1]
+    ])
+
+    return diferencias * escala, T
 
 
 def estimarH(imgPts, objPts):
     """
-    Estima la homografía H que lleva puntos del plano del mundo a la imagen,
-    usando DLT con normalización de Hartley.
-
-    Parámetros:
-        imgPts: array de n x 2 con los píxeles (u, v).
-        objPts: array de n x 2 con los puntos del plano (U, V), en el mismo
-                orden que imgPts (el punto i de uno corresponde al i del otro).
+    Recibe:
+        imgPts: puntos de imagen, de forma (n, 2).
+        objPts: puntos del plano, de forma (n, 2).
 
     Devuelve:
-        H: matriz de 3 x 3 tal que (u, v, 1) ~ H * (U, V, 1), normalizada para
-           tener norma de Frobenius igual a 1 (H está definida salvo escala).
+        H: homografía del plano a la imagen, normalizada
+           con norma de Frobenius igual a 1.
     """
-    # Normalizamos por separado los puntos del mundo y los de la imagen
+    if imgPts.shape != objPts.shape or objPts.shape[0] < 4:
+        raise ValueError(
+            "Se requieren al menos cuatro correspondencias 2D."
+        )
+
+    # Normalizamos ambos conjuntos para mejorar la escala del sistema.
     objN, Tw = normalizarHartley(objPts)
     imgN, Ti = normalizarHartley(imgPts)
 
-    # Armamos Q (ecuación 11) con los puntos normalizados y resolvemos Qh = 0
-    # tomando el último vector singular (mínimo de ||Qh|| con ||h|| = 1)
     Q = obtenerQ2d(imgN, objN)
-    _, _, V = svd_reducida(Q)
-    Hn = V[:, -1].reshape(3, 3)   # homografía en coordenadas normalizadas
 
-    # Desnormalizamos (ecuación 14): H = Ti^-1 * Hn * Tw
-    H = multiplicacionMatricial(inversa(Ti), multiplicacionMatricial(Hn, Tw))
+    # Conservamos el vector del núcleo, incluso con solo cuatro puntos.
+    h = vectorMinimoDLT(Q)
+    Hn = h.reshape((3, 3))
 
-    # H solo se conoce salvo escala: la normalizamos por su norma de Frobenius
-    # (más estable que dividir por H[2, 2], que puede ser casi cero)
-    return H / norma(H.reshape(-1), 2)
+    # Deshacemos las transformaciones de Hartley.
+    H = multiplicacionMatricial(
+        inversa(Ti),
+        multiplicacionMatricial(Hn, Tw)
+    )
+
+    return H / norma(H.reshape((-1,)), 2)
+
+
+def amarv(hi, hj):
+    """
+    Recibe dos columnas de una homografía, de forma (3,).
+    Devuelve los seis coeficientes de la restricción hi.T*B*hj,
+    donde B es simétrica.
+    """
+    return np.array([
+        hi[0]*hj[0],
+        hi[0]*hj[1] + hi[1]*hj[0],
+        hi[1]*hj[1],
+        hi[2]*hj[0] + hi[0]*hj[2],
+        hi[2]*hj[1] + hi[1]*hj[2],
+        hi[2]*hj[2]
+    ])
+
+
+def armarA(Hlst):
+    """
+    Recibe:
+        Hlst: lista de homografías del plano a la imagen.
+
+    Devuelve:
+        A: matriz de forma (2*len(Hlst), 6) con las restricciones
+           para estimar los parámetros intrínsecos.
+    """
+    filas = []
+
+    for H in Hlst:
+        h1 = H[:, 0]
+        h2 = H[:, 1]
+
+        # Ortogonalidad: h1.T*B*h2 = 0.
+        filas.append(amarv(h1, h2))
+
+        # Igual norma: h1.T*B*h1 - h2.T*B*h2 = 0.
+        filas.append(amarv(h1, h1) - amarv(h2, h2))
+
+    return np.array(filas)
+
+
+def calcularMatrizK2D(A):
+    """
+    Recibe:
+        A: matriz de restricciones de las homografías.
+
+    Devuelve:
+        K: matriz intrínseca triangular superior,
+           normalizada con K[2, 2] = 1.
+
+    Requiere que la B estimada sea definida positiva, salvo signo.
+    """
+    b = vectorMinimoDLT(A)
+
+    # Orden de b: B11, B12, B22, B13, B23, B33.
+    B = np.array([
+        [b[0], b[1], b[3]],
+        [b[1], b[2], b[4]],
+        [b[3], b[4], b[5]]
+    ])
+
+    # B y -B resuelven el mismo sistema homogéneo.
+    if B[2, 2] < 0:
+        B = -B
+
+    # Reescalamos para facilitar las operaciones numéricas.
+    if B[2, 2] == 0:
+        raise ValueError("La matriz B estimada no permite recuperar K.")
+
+    B = B / B[2, 2]
+
+    # Comprobamos definición positiva mediante los menores principales.
+    menor2 = B[0, 0]*B[1, 1] - B[0, 1]*B[1, 0]
+
+    det_B = (
+        B[0, 0]*(B[1, 1]*B[2, 2] - B[1, 2]*B[2, 1])
+        - B[0, 1]*(B[1, 0]*B[2, 2] - B[1, 2]*B[2, 0])
+        + B[0, 2]*(B[1, 0]*B[2, 1] - B[1, 1]*B[2, 0])
+    )
+
+    if B[0, 0] <= 0 or menor2 <= 0 or det_B <= 0:
+        raise ValueError(
+            "B no es definida positiva. Revisar las correspondencias, "
+            "la diversidad de las vistas y la resolución del sistema."
+        )
+
+    # B es proporcional a K^-T*K^-1.
+    # Si B = L*L.T, entonces K es proporcional a L^-T.
+    L = calculaCholesky(B)
+    K = inversa(L.T)
+
+    return K / K[2, 2]
+
+
+def obtenerPose2D(Hj, K):
+    """
+    Recibe:
+        Hj: homografía del plano del objeto a la imagen.
+        K: matriz intrínseca.
+
+    Devuelve:
+        R: rotación de objeto a cámara, de forma (3, 3).
+        t: traslación de forma (3,), en las unidades de objPts.
+    """
+    columnas = multiplicacionMatricial(inversa(K), Hj)
+
+    a1 = columnas[:, 0]
+    a2 = columnas[:, 1]
+    a3 = columnas[:, 2]
+
+    # Las dos primeras columnas proporcionan estimaciones de la escala.
+    denominador = norma(a1, 2) + norma(a2, 2)
+
+    if denominador == 0:
+        raise ValueError("La homografía no permite recuperar la pose.")
+
+    escala = 2 / denominador
+
+    # Elegimos el signo que sitúa el origen delante de la cámara.
+    if a3[2] < 0:
+        escala = -escala
+
+    r1 = escala * a1
+    r2 = escala * a2
+    t = escala * a3
+
+    # Tercera columna: producto vectorial r1 x r2.
+    r3 = np.array([
+        r1[1]*r2[2] - r1[2]*r2[1],
+        r1[2]*r2[0] - r1[0]*r2[2],
+        r1[0]*r2[1] - r1[1]*r2[0]
+    ])
+
+    R_aprox = np.zeros((3, 3))
+    R_aprox[:, 0] = r1
+    R_aprox[:, 1] = r2
+    R_aprox[:, 2] = r3
+
+    # Proyectamos la estimación sobre las matrices de rotación.
+    # Tu SVD devuelve V, no V.T.
+    U, valores, V = svd_reducida(R_aprox)
+
+    if valores.shape[0] != 3:
+        raise ValueError("La rotación aproximada no tiene rango 3.")
+
+    UVt = multiplicacionMatricial(U, V.T)
+
+    det_UVt = (
+        UVt[0, 0]*(UVt[1, 1]*UVt[2, 2] - UVt[1, 2]*UVt[2, 1])
+        - UVt[0, 1]*(UVt[1, 0]*UVt[2, 2] - UVt[1, 2]*UVt[2, 0])
+        + UVt[0, 2]*(UVt[1, 0]*UVt[2, 1] - UVt[1, 1]*UVt[2, 0])
+    )
+
+    S = np.eye(3)
+
+    # Corregimos una posible reflexión sin cambiar el signo de t.
+    # La SVD ordena los valores singulares de mayor a menor.
+    if det_UVt < 0:
+        S[2, 2] = -1
+
+    R = multiplicacionMatricial(
+        multiplicacionMatricial(U, S),
+        V.T
+    )
+
+    return R, t
 
 
 """
