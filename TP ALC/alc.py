@@ -518,41 +518,40 @@ def obtenerPose2D(Hj, K):
 ------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
-#Ejercicio 5 a):
 def parametrosIntrinsecosEj5a():
-    world_img_pts = pd.read_csv(os.path.join("salguero", "world_img_pts.csv"))
+    world_img_pts = pd.read_csv("salguero/world_img_pts.csv", sep=";")
 
     objPts = world_img_pts[["X", "Y"]].values
     H_lista = []
 
-#Calculo H_0:
-    imgPts_0 = world_img_pts[["u_0","v_0"]].values  # Extrae todas las filas de las columnas "u_0" y "v_0", osea matriz de (n,2)
+    # Calculo H_0
+    imgPts_0 = world_img_pts[["u_0", "v_0"]].values
     H_0 = estimarH(imgPts_0, objPts)
     H_lista.append(H_0)
 
-#Calculo H_1:
-    imgPts_1 = world_img_pts[["u_1","v_1"]].values  # Extrae todas las filas de las columnas "u_1" y "v_1", osea matriz de (n,2)
-    H_1 = estimarH(imgPts_1,objPts)
+    # Calculo H_1
+    imgPts_1 = world_img_pts[["u_1", "v_1"]].values
+    H_1 = estimarH(imgPts_1, objPts)
     H_lista.append(H_1)
 
-#Calculo H_2:
-    imgPts_2 = world_img_pts[["u_2","v_2"]].values  # Extrae todas las filas de las columnas "u_2" y "v_2", osea matriz de (n,2)
+    # Calculo H_2
+    imgPts_2 = world_img_pts[["u_2", "v_2"]].values
     H_2 = estimarH(imgPts_2, objPts)
     H_lista.append(H_2)
 
-#Calculo H_3:
-    imgPts_3 = world_img_pts[["u_3","v_3"]].values  # Extrae todas las filas de las columnas "u_3" y "v_3", osea matriz de (n,2)
+    # Calculo H_3
+    imgPts_3 = world_img_pts[["u_3", "v_3"]].values
     H_3 = estimarH(imgPts_3, objPts)
     H_lista.append(H_3)
 
-
-#Construimos la matriz A:
+    # Construimos la matriz A
     A = armarA(H_lista)
 
-#Obtenemos la matriz K con la matriz A:
+    # Obtenemos la matriz K
     K = calcularMatrizK2D(A)
 
     return K
+
 
 
 def poseYReproyeccionEj5b(archivo_txt,K,archivo_jpg):
