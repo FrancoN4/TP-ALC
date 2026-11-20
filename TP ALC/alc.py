@@ -1151,6 +1151,11 @@ def calcularxA(x, A):
     res = np.array(res)
     return res
 
+'''
+Forma alternativa de calcular el producto entre una matriz y un vector.
+'''
+def prodMatV(A, v):
+    return (A * v).sum(axis=1)
 
 def multiplicacionMatricial(A, B, tol=1e-12):
     columnas_A = A.shape[1]
