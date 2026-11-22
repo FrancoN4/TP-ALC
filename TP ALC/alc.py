@@ -513,23 +513,6 @@ def obtenerPose2D(Hj, K):
 
     return R, t
 
-#%%
-"""
-------------------------------------------------------------------------------------------------------------------------------------------------
-"""
-
-
-def poseYReproyeccionEj5b(archivo_txt,K,archivo_jpg):
-    datos = np.loadtxt(archivo_txt)
-    objPts = traspuesta(datos[1:3, :])  #Extraemos ejes X,Y de la foto 2d. Matriz de (51x2)
-    imgPts = traspuesta(datos[4:6, :])  #Extraemos u, v que son las coordenadas en píxeles (u la columna y v la fila de la foto). Matriz de (51x2)
-
-#Calculamos H (homografía) usando los datos del archivo txt:
-    H = estimarH(imgPts, objPts)
-
-#Calculamos la matriz R (matriz de rotacion que define la orientación 3d de la camara) y t (que es un vector que define la posición fisica 3d de la cámara) usando H y K:
-    R, t = obtenerPose2D(H, K)
-
 
 #%%
 
