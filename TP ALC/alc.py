@@ -518,41 +518,6 @@ def obtenerPose2D(Hj, K):
 ------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
-def parametrosIntrinsecosEj5a():
-    world_img_pts = pd.read_csv("salguero/world_img_pts.csv", sep=";")
-
-    objPts = world_img_pts[["X", "Y"]].values
-    H_lista = []
-
-    # Calculo H_0
-    imgPts_0 = world_img_pts[["u_0", "v_0"]].values
-    H_0 = estimarH(imgPts_0, objPts)
-    H_lista.append(H_0)
-
-    # Calculo H_1
-    imgPts_1 = world_img_pts[["u_1", "v_1"]].values
-    H_1 = estimarH(imgPts_1, objPts)
-    H_lista.append(H_1)
-
-    # Calculo H_2
-    imgPts_2 = world_img_pts[["u_2", "v_2"]].values
-    H_2 = estimarH(imgPts_2, objPts)
-    H_lista.append(H_2)
-
-    # Calculo H_3
-    imgPts_3 = world_img_pts[["u_3", "v_3"]].values
-    H_3 = estimarH(imgPts_3, objPts)
-    H_lista.append(H_3)
-
-    # Construimos la matriz A
-    A = armarA(H_lista)
-
-    # Obtenemos la matriz K
-    K = calcularMatrizK2D(A)
-
-    return K
-
-
 
 def poseYReproyeccionEj5b(archivo_txt,K,archivo_jpg):
     datos = np.loadtxt(archivo_txt)
